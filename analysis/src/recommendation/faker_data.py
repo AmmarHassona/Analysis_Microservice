@@ -14,47 +14,49 @@ fake = Faker()
 
 def drop_dataset():
     """Drop the existing dataset in the analysis database."""
-    client.drop_database(db)
-    print('DB has been dropped.')
+    client.drop_database('analysis')
+    print("Database 'analysis' has been dropped.")
 
-def generate_synthetic_data(num_records):
-    """Generate synthetic spending data for every month for each category."""
-    data = []
+def generate_synthetic_data():
+    """
+    Generate synthetic spending data for a single user 
+    across all categories for every month of the current year.
+    """
     user_id = 1  # Single user
     categories = ['Food', 'Entertainment', 'Bills', 'Shopping', 'Transportation']
+    current_year = datetime.now().year
 
-    # Loop through each category
+    # Generate synthetic data
+    data = []
     for category in categories:
-        for month in range(1, 13):  # Ensure spending for every month
-            # Generate a random date within the month
-            year = datetime.now().year
-            day = random.randint(1, 28)  # To keep things simple for February
-            date = datetime(year, month, day)
-
-            # Generate a random spending amount and vendor
+        for month in range(1, 13):  # Iterate through all months
+            date = datetime(current_year, month, random.randint(1, 28))  # Avoid date errors
             amount = round(random.uniform(10, 500), 2)
             vendor = fake.company()
 
-            # Append the generated record
-            data.append({
+            record = {
                 "user_id": user_id,
                 "category": category,
                 "date": date,
+                "month": date.strftime('%Y-%m'),
                 "amount": amount,
-                "vendor": vendor,
-                "created_at": datetime.now()
-            })
-    
-    # Convert the data to a DataFrame (optional, for debugging)
-    df = pd.DataFrame(data, columns=['user_id', 'category', 'date', 'amount', 'vendor', 'created_at'])
-    print(df.head())  # Print a preview of the data
+                "vendor": vendor
+            }
+            data.append(record)
 
     # Insert the data into MongoDB
     if data:
         collection.insert_many(data)
-        print(f"Inserted {len(data)} records into MongoDB.")
+        print(f"Inserted {len(data)} records into the 'spending_trend_data' collection.")
     else:
         print("No data to insert.")
 
-# Generate data for a single user with spending for every month and category
-generate_synthetic_data(60)  # 60 records (5 categories * 12 months)
+    # Optional: Preview the generated data using pandas
+    df = pd.DataFrame(data)
+    print("Preview of the generated data:")
+    print(df.head())
+
+# Main execution
+if __name__ == "__main__":
+    #drop_dataset()
+    generate_synthetic_data()  # Generate new synthetic data
