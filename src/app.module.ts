@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { HttpModule } from '@nestjs/axios';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AnalysisService } from './services/analysis.service';
 import { AnalysisController } from './controllers/analysis.controller';
@@ -10,12 +11,13 @@ import { ConfigModule } from '@nestjs/config';
 @Module({
   imports: [
     ConfigModule.forRoot(),
-    MongooseModule.forRoot('mongodb+srv://ammar:Csik2De8hrBk1NQx@analysisdb.r2wtm.mongodb.net/?retryWrites=true&w=majority&appName=AnalysisDB'),
+    MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb+srv://ammar:Csik2De8hrBk1NQx@analysisdb.r2wtm.mongodb.net/?retryWrites=true&w=majority&appName=AnalysisDB'),
     MongooseModule.forFeature([
       { name: AnalysisReport.name, schema: AnalysisReportSchema },
       { name: SpendingRecommendation.name, schema: SpendingRecommendationSchema },
       { name: SpendingTrend.name, schema: SpendingTrendSchema },
     ]),
+    HttpModule
   ],
   controllers: [AnalysisController],
   providers: [AnalysisService],

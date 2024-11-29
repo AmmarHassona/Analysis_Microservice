@@ -1,31 +1,50 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { AnalysisReport, AnalysisReportDocument } from '../schemas/analysis_report.schema';
-import { SpendingRecommendation, SpendingRecommendationDocument } from '../schemas/spending_recommendation.schema';
-import { SpendingTrend, SpendingTrendDocument } from '../schemas/spending_trend.schema';
-import { CreateReportDto } from '../dto/create-report.dto';
+import { HttpService } from '@nestjs/axios';
+import { AxiosResponse } from 'axios';
+import { AxiosError } from 'axios';
+import { lastValueFrom } from 'rxjs';
+import { SpendingTrend } from '../schemas/spending_trend.schema';
+import { SpendingRecommendation } from '../schemas/spending_recommendation.schema';
 
 @Injectable()
 export class AnalysisService {
 
-  constructor(
-    @InjectModel(SpendingTrend.name) private spendingTrendModel: Model<SpendingTrendDocument>,
-    @InjectModel(SpendingRecommendation.name) private spendingRecommendationModel: Model<SpendingRecommendationDocument>,
-    @InjectModel(AnalysisReport.name) private analysisReportModel: Model<AnalysisReportDocument>
-  ) {}
+  constructor(private readonly httpService: HttpService) {}
 
   async getTrends(): Promise<SpendingTrend[]> {
-    return this.spendingTrendModel.find().exec();
-  }
+    console.log('Making request to Flask API for trends...');
+    try {
+      const response: AxiosResponse<SpendingTrend[]> = await lastValueFrom(
+        this.httpService.get('http://127.0.0.1:5000/get-trends')
+      );
+      console.log('Flask response for trends:', response.data);
+      return response.data;
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('Error fetching trends from Flask:', axiosError.message);
+      if (axiosError.response) {
+        console.error('Flask error details:', axiosError.response.data);
+      }
+      throw error;
+    }
+  }  
 
   async getRecommendations(): Promise<SpendingRecommendation[]> {
-    return this.spendingRecommendationModel.find().exec();
-  }
-
-  async createReport(createReportDto: CreateReportDto): Promise<AnalysisReport> {
-    const newReport = new this.analysisReportModel(createReportDto);
-    return newReport.save();
-  }
+    console.log('Making request to Flask API for recommendations...');
+    try {
+      const response: AxiosResponse<SpendingRecommendation[]> = await lastValueFrom(
+        this.httpService.get('http://127.0.0.1:5000/generate-recommendations')
+      );
+      console.log('Flask response for recommendations:', response.data);
+      return response.data;
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('Error fetching recommendations from Flask:', axiosError.message);
+      if (axiosError.response) {
+        console.error('Flask error details:', axiosError.response.data);
+      }
+      throw error;
+    }
+  }  
 
 }

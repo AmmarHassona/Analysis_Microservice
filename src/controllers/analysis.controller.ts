@@ -20,9 +20,9 @@ export class AnalysisController {
     return this.analysisService.getRecommendations();
   }
 
-  @Post('report')
-  async createReport(@Body() createReportDto: CreateReportDto): Promise<AnalysisReport> {
-    return this.analysisService.createReport(createReportDto);
-  }
+  // @Post('report')
+  // async createReport(@Body() createReportDto: CreateReportDto): Promise<AnalysisReport> {
+  //   return this.analysisService.createReport(createReportDto);
+  // }
 
 }
