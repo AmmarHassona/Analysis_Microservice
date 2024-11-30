@@ -2,15 +2,12 @@ import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { AxiosResponse, AxiosError } from 'axios';
 import { lastValueFrom } from 'rxjs';
-import { plainToInstance } from 'class-transformer';
-import { SpendingTrendDto } from '../dto/spending-trend.dto';
-import { SpendingRecommendationDto } from '../dto/spending-recommendation.dto';
 
 @Injectable()
 export class AnalysisService {
   constructor(private readonly httpService: HttpService) {}
 
-  // Fetch spending trends from Flask
+  // Fetch and transform spending trends from Flask
   async getTrends(): Promise<any> {
     console.log('Fetching spending trends from Flask API...');
     try {
@@ -24,7 +21,8 @@ export class AnalysisService {
         throw new Error('Error in Flask API response');
       }
   
-      return response.data.trends; // Return raw trends data
+      const transformedTrends = this.transformTrends(response.data.trends); // Transform data here
+      return transformedTrends;
     } catch (error) {
       const axiosError = error as AxiosError;
       console.error('Error fetching trends from Flask:', axiosError.message);
@@ -39,8 +37,9 @@ export class AnalysisService {
         axiosError.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
-  }  
+  }
 
+  // Fetch and transform recommendations from Flask
   async getRecommendations(): Promise<any> {
     console.log('Fetching recommendations from Flask API...');
     try {
@@ -54,7 +53,8 @@ export class AnalysisService {
         throw new Error('Error in Flask API response');
       }
   
-      return response.data.recommendations; // Return raw recommendations data
+      const transformedRecommendations = this.transformRecommendations(response.data.recommendations); // Transform data here
+      return transformedRecommendations;
     } catch (error) {
       const axiosError = error as AxiosError;
       console.error('Error fetching recommendations from Flask:', axiosError.message);
@@ -70,5 +70,30 @@ export class AnalysisService {
       );
     }
   }
-  
+
+  // Transform trends to the desired format
+  private transformTrends(trends: any[]): any[] {
+    return trends.map(trend => ({
+      userId: trend.user_id,
+      category: trend.category,
+      month: trend.month,
+      predictedSpending: trend.predicted_spending,
+      recommendedAmount: trend.recommended_amount,
+      reason: trend.reason,
+      generatedAt: trend.generated_at,
+    }));
+  }
+
+  // Transform recommendations to the desired format
+  private transformRecommendations(recommendations: any[]): any[] {
+    return recommendations.map(recommendation => ({
+      userId: recommendation.user_id,
+      category: recommendation.category,
+      month: recommendation.month,
+      predictedSpending: recommendation.predicted_spending,
+      recommendedAmount: recommendation.recommended_amount,
+      reason: recommendation.reason,
+      generatedAt: recommendation.generated_at,
+    }));
+  }
 }
