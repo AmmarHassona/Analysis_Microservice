@@ -1,50 +1,74 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
-import { AxiosResponse } from 'axios';
-import { AxiosError } from 'axios';
+import { AxiosResponse, AxiosError } from 'axios';
 import { lastValueFrom } from 'rxjs';
-import { SpendingTrend } from '../schemas/spending_trend.schema';
-import { SpendingRecommendation } from '../schemas/spending_recommendation.schema';
+import { plainToInstance } from 'class-transformer';
+import { SpendingTrendDto } from '../dto/spending-trend.dto';
+import { SpendingRecommendationDto } from '../dto/spending-recommendation.dto';
 
 @Injectable()
 export class AnalysisService {
-
   constructor(private readonly httpService: HttpService) {}
 
-  async getTrends(): Promise<SpendingTrend[]> {
-    console.log('Making request to Flask API for trends...');
+  // Fetch spending trends from Flask
+  async getTrends(): Promise<any> {
+    console.log('Fetching spending trends from Flask API...');
     try {
-      const response: AxiosResponse<SpendingTrend[]> = await lastValueFrom(
-        this.httpService.get('http://127.0.0.1:5000/get-trends')
+      const response: AxiosResponse = await lastValueFrom(
+        this.httpService.get('http://127.0.0.1:5000/get-trends'),
       );
-      console.log('Flask response for trends:', response.data);
-      return response.data;
+  
+      console.log('Raw Flask response:', response.data);
+  
+      if (response.data.status !== 'success') {
+        throw new Error('Error in Flask API response');
+      }
+  
+      return response.data.trends; // Return raw trends data
     } catch (error) {
       const axiosError = error as AxiosError;
       console.error('Error fetching trends from Flask:', axiosError.message);
       if (axiosError.response) {
         console.error('Flask error details:', axiosError.response.data);
       }
-      throw error;
+      throw new HttpException(
+        {
+          message: 'Failed to fetch trends from Flask API',
+          details: axiosError.response?.data || {},
+        },
+        axiosError.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }  
 
-  async getRecommendations(): Promise<SpendingRecommendation[]> {
-    console.log('Making request to Flask API for recommendations...');
+  async getRecommendations(): Promise<any> {
+    console.log('Fetching recommendations from Flask API...');
     try {
-      const response: AxiosResponse<SpendingRecommendation[]> = await lastValueFrom(
-        this.httpService.get('http://127.0.0.1:5000/generate-recommendations')
+      const response: AxiosResponse = await lastValueFrom(
+        this.httpService.get('http://127.0.0.1:5000/generate-recommendations'),
       );
-      console.log('Flask response for recommendations:', response.data);
-      return response.data;
+  
+      console.log('Raw Flask response:', response.data);
+  
+      if (response.data.status !== 'success') {
+        throw new Error('Error in Flask API response');
+      }
+  
+      return response.data.recommendations; // Return raw recommendations data
     } catch (error) {
       const axiosError = error as AxiosError;
       console.error('Error fetching recommendations from Flask:', axiosError.message);
       if (axiosError.response) {
         console.error('Flask error details:', axiosError.response.data);
       }
-      throw error;
+      throw new HttpException(
+        {
+          message: 'Failed to fetch recommendations from Flask API',
+          details: axiosError.response?.data || {},
+        },
+        axiosError.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
-  }  
-
+  }
+  
 }
