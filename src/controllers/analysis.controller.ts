@@ -1,21 +1,22 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Logger } from '@nestjs/common';
 import { AnalysisService } from '../services/analysis.service';
-import { SpendingTrendDto } from '../dto/spending-trend.dto';
-import { SpendingRecommendationDto } from '../dto/spending-recommendation.dto';
+import { EventPattern } from '@nestjs/microservices';
 
-@Controller('analysis')
+@Controller()
 export class AnalysisController {
+  private readonly logger = new Logger(AnalysisController.name);
+  
   constructor(private readonly analysisService: AnalysisService) {}
 
-  @Get('trends')
-  async getTrends(): Promise<SpendingTrendDto[]> {
-    console.log('Controller: Fetching spending trends...');
-    return this.analysisService.getTrends();
+  @EventPattern('transaction_created')
+  async handleTransactionCreated(data: any) {
+    this.logger.log('Controller: Received transaction_created event');
+    return this.analysisService.handleTransactionCreated(data);
   }
 
-  @Get('recommendations')
-  async getRecommendations(): Promise<SpendingRecommendationDto[]> {
-    console.log('Controller: Fetching spending recommendations...');
-    return this.analysisService.getRecommendations();
+  @EventPattern('user_transactions_fetched')
+  async handleUserTransactionsFetched(data: any) {
+    this.logger.log('Controller: Received user_transactions_fetched event');
+    return this.analysisService.handleUserTransactionsFetched(data);
   }
 }

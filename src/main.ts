@@ -1,16 +1,31 @@
 import { NestFactory } from '@nestjs/core';
+import { Transport } from '@nestjs/microservices';
 import { AppModule } from './app.module';
-import * as dotenv from 'dotenv';
-
-dotenv.config();
+import { Logger } from '@nestjs/common';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const logger = new Logger('Main');
   
-  const port = process.env.PORT;
+  try {
+    const app = await NestFactory.createMicroservice(AppModule, {
+      transport: Transport.RMQ,
+      options: {
+        urls: ['amqp://localhost:5672'],
+        queue: 'analysis_queue',
+        queueOptions: {
+          durable: false,
+        },
+      
+      },
+    });
 
-  await app.listen(port || 3000);
-  console.log(`Application is running on: http://localhost:${port}`);
+    app.listen().then(() => {
+      logger.log('Analysis Microservice is connected to RabbitMQ');
+      logger.log('Listening for events...');
+    });
+  } catch (error) {
+    logger.error('Failed to start Analysis Microservice:', error);
+    process.exit(1);
+  }
 }
-
 bootstrap();
