@@ -13,12 +13,12 @@ import { QUEUE_NAME } from './constants';
 @Module({
   imports: [
     ConfigModule.forRoot(),
-    // MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb+srv://ammar:Csik2De8hrBk1NQx@analysisdb.r2wtm.mongodb.net/?retryWrites=true&w=majority&appName=AnalysisDB'),
-    // MongooseModule.forFeature([
-    //   { name: AnalysisReport.name, schema: AnalysisReportSchema },
-    //   { name: SpendingRecommendation.name, schema: SpendingRecommendationSchema },
-    //   { name: SpendingTrend.name, schema: SpendingTrendSchema },
-    // ]),
+    MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb+srv://ammar:Csik2De8hrBk1NQx@analysisdb.r2wtm.mongodb.net/?retryWrites=true&w=majority&appName=AnalysisDB'),
+    MongooseModule.forFeature([
+      { name: AnalysisReport.name, schema: AnalysisReportSchema },
+      { name: SpendingRecommendation.name, schema: SpendingRecommendationSchema },
+      { name: SpendingTrend.name, schema: SpendingTrendSchema },
+    ]),
     HttpModule,
     ClientsModule.register([
       {

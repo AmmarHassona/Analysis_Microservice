@@ -12,11 +12,16 @@ export class AnalysisController {
   async handleTransactionCreated(data: any) {
     this.logger.log('Controller: Received transaction_created event');
     return this.analysisService.handleTransactionCreated(data);
-  }
+  } // comment this one 
 
   @EventPattern('user_transactions_fetched')
   async handleUserTransactionsFetched(data: any) {
     this.logger.log('Controller: Received user_transactions_fetched event');
-    return this.analysisService.handleUserTransactionsFetched(data);
+    try {
+      await this.analysisService.handleUserTransactionsFetched(data);
+    } catch (error) {
+      this.logger.error('Error handling transactions in controller:');
+      throw error;
+    }
   }
 }
