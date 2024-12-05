@@ -1,9 +1,9 @@
-import { Controller, Logger, Post , Body , Get } from '@nestjs/common';
+import { Controller, Logger, Post , Body , Get, Param } from '@nestjs/common';
 import { AnalysisService } from '../services/analysis.service';
 import { EventPattern } from '@nestjs/microservices';
 import axios from 'axios';
 
-@Controller('comparison')
+@Controller()
 export class AnalysisController {
 
   private readonly logger = new Logger(AnalysisController.name);
@@ -27,10 +27,15 @@ export class AnalysisController {
     }
   }
 
-  @Post('get-comparison')
-  async getComparison(@Body() budgets: any): Promise<any> {
-    this.logger.log('Received budgets:', budgets);  // Logging for debugging
-    return await this.analysisService.getComparisonFromFlask(budgets);
+  @Post('/get-comparison')
+  async getComparison(@Body() budgets: Record<string, number>) {
+    try {
+      const comparisonData = await this.analysisService.getComparison(budgets);
+      return comparisonData;  // Return the data received from Flask
+    } catch (error) {
+      this.logger.error('Error getting comparison data from Flask API:', error);
+      return { error: error || 'An error occurred while processing your request' };
+    }
   }
 
 }

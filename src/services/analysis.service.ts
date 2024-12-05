@@ -63,19 +63,21 @@ export class AnalysisService {
     }
   }
 
-  async getComparisonFromFlask(budgets: any): Promise<any> {
-    console.log('Budgets passed to Flask:', budgets);
+  async getComparison(budgets: Record<string, number>) {
+    this.logger.log('Budgets being sent to Flask:', budgets);
   
     try {
-      const response = await firstValueFrom(
-        this.httpService.post(this.flaskApiUrl, { budgets })
-      );
-      console.log('Response from Flask:', response.data);
+      const response = await axios.post(this.flaskApiUrl, { budgets }, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      this.logger.log('Received comparison data from Flask:', response.data); // Log the response
       return response.data;
     } catch (error) {
-      console.error('Error retrieving data from Flask:', error);
-      throw error;
+      this.logger.error(`Failed to fetch predictions from Flask API: ${error}`);
+      throw new Error(`Failed to fetch predictions from Flask API: ${error}`);
     }
   }
-  
+
 }
