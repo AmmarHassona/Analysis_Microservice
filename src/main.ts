@@ -7,7 +7,12 @@ async function bootstrap() {
   const logger = new Logger('Main');
   
   try {
-    const app = await NestFactory.createMicroservice(AppModule, {
+    const app = await NestFactory.create(AppModule);
+    app.enableCors();
+    await app.listen(3000);
+    logger.log('http://localhost:3000');
+
+    const microservice  = await NestFactory.createMicroservice(AppModule, {
       transport: Transport.RMQ,
       options: {
         urls: ['amqp://localhost:5672'],
@@ -19,7 +24,7 @@ async function bootstrap() {
       },
     });
 
-    app.listen().then(() => {
+    microservice .listen().then(() => {
       logger.log('Analysis Microservice is connected to RabbitMQ');
       logger.log('Listening for events...');
     });
