@@ -7,7 +7,6 @@ import { AnalysisReport, AnalysisReportSchema } from '../schemas/analysis_report
 import { SpendingRecommendation, SpendingRecommendationSchema } from '../schemas/spending_recommendation.schema';
 import { SpendingTrend, SpendingTrendSchema } from '../schemas/spending_trend.schema';
 
-
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),

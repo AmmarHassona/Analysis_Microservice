@@ -1,41 +1,24 @@
-import { Controller, Logger, Post , Body , Get, Param } from '@nestjs/common';
+import { Controller, Param, Post, Body, Logger } from '@nestjs/common';
 import { AnalysisService } from '../services/analysis.service';
-import { EventPattern } from '@nestjs/microservices';
-import axios from 'axios';
 
-@Controller()
+@Controller('analysis')
 export class AnalysisController {
-
   private readonly logger = new Logger(AnalysisController.name);
-  
+
   constructor(private readonly analysisService: AnalysisService) {}
 
-  @EventPattern('transaction_created')
-  async handleTransactionCreated(data: any) {
-    this.logger.log('Controller: Received transaction_created event');
-    return this.analysisService.handleTransactionCreated(data);
-  }
+  @Post(':userId/budget')
+  async analyzeBudget(
+    @Param('userId') userId: string, 
+    @Body() body: { budgets: Record<string, number> },
+  ) {
+    const { budgets } = body;
 
-  @EventPattern('user_transactions_fetched')
-  async handleUserTransactionsFetched(data: any) {
-    this.logger.log('Controller: Received user_transactions_fetched event');
-    try {
-      await this.analysisService.handleUserTransactionsFetched(data);
-    } catch (error) {
-      this.logger.error('Error handling transactions in controller:');
-      throw error;
+    if (!budgets) {
+      return { error: 'Budgets not provided' };
     }
-  }
 
-  @Post('/get-comparison')
-  async getComparison(@Body() budgets: Record<string, number>) {
-    try {
-      const comparisonData = await this.analysisService.getComparison(budgets);
-      return comparisonData;  // Return the data received from Flask
-    } catch (error) {
-      this.logger.error('Error getting comparison data from Flask API:', error);
-      return { error: error || 'An error occurred while processing your request' };
-    }
+    this.logger.log(`Received budgets for userId: ${userId}`);
+    return await this.analysisService.analyzeBudget(userId, budgets);
   }
-
 }

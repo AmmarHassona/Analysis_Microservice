@@ -1,31 +1,49 @@
+import sys
 import pandas as pd
+import json
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score
 
-def fetch_data():
-    # Data Preprocessing & Cleaning
-    data = pd.read_csv('C:/Users/MSI/Documents/GitHub/Analysis_microservice/exports/transactions.csv')
+def fetch_data(file_path):
+    # Load and preprocess the CSV file
+    data = pd.read_csv(file_path)
 
-    data = data.drop(columns=['createdAt', 'updatedAt', 'notes', 'cardLastFourDigits', 'id'])
+    # Rename columns for consistency
+    data.rename(columns={
+        'Transaction Date': 'transactionDate',
+        'Amount': 'amount',
+        'Vendor Name': 'vendorName',
+        'Category': 'category',
+        'Payment Method': 'paymentMethod',
+        'Place': 'place',
+        'User ID': 'userId'
+    }, inplace=True, errors='ignore')
 
-    data['transactionDate'] = pd.to_datetime(data['transactionDate'])
+    # Drop unnecessary columns
+    data = data.drop(columns=['Created At', 'Updated At', 'Notes', 'Card Last Four Digits', 'ID'], errors='ignore')
+
+    # Parse dates and extract features
+    data['transactionDate'] = pd.to_datetime(data['transactionDate'], errors='coerce')
+    data = data.dropna(subset=['transactionDate'])
+
     data['year'] = data['transactionDate'].dt.year
     data['month'] = data['transactionDate'].dt.month
     data['day'] = data['transactionDate'].dt.day
     data['weekday'] = data['transactionDate'].dt.weekday
 
+    # Rolling averages and other features
     data['amount_bin'] = pd.cut(data['amount'], bins=3, labels=['Low', 'Medium', 'High'])
     data['rolling_avg_amount'] = data.groupby('userId')['amount'].transform(lambda x: x.rolling(3, min_periods=1).mean())
     data['category_frequency'] = data.groupby(['userId', 'category'])['category'].transform('count')
 
+    # Aggregate monthly totals
     monthly_totals = data.groupby(['userId', 'year', 'month'])['amount'].sum().reset_index(name='monthly_total')
     data = pd.merge(data, monthly_totals, on=['userId', 'year', 'month'], how='left')
-    data['prev_month_total'] = data.groupby('userId')['monthly_total'].shift(1)
-    data['prev_month_total'] = data['prev_month_total'].fillna(0)
+    data['prev_month_total'] = data.groupby('userId')['monthly_total'].shift(1).fillna(0)
 
-    # Encode categorical columns and keep a mapping for category names
+    # Encode categorical variables
     encoder = LabelEncoder()
     categorical_cols = ['vendorName', 'category', 'paymentMethod', 'place', 'amount_bin']
     category_mapping = {}
@@ -37,27 +55,28 @@ def fetch_data():
         else:
             data[col] = encoder.fit_transform(data[col])
 
+    # Standardize numeric data
     scaler = StandardScaler()
     data[['amount']] = scaler.fit_transform(data[['amount']])
 
-    # Add future_amount as the target
+    # Define future amount as the target
     data['future_amount'] = data.groupby('userId')['amount'].shift(-1)
-    data = data.dropna(subset=['future_amount'])  # Drop rows without a future target
+    data = data.dropna(subset=['future_amount'])
 
     return data, scaler, category_mapping
 
-def get_predictions(budgets):
-    # Fetch data and perform necessary preprocessing
-    data, scaler, category_mapping = fetch_data()
+def analyze(file_path, budgets):
+    # Fetch and preprocess the data
+    data, scaler, category_mapping = fetch_data(file_path)
 
     # Define features and target
-    x = data.drop(columns=['amount', 'future_amount', 'transactionDate', 'userId'])
+    x = data.drop(columns=['amount', 'future_amount', 'transactionDate', 'userId'], errors='ignore')
     y = data['future_amount']
 
-    # Train-Test Split
+    # Split data into training and testing sets
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
 
-    # GridSearchCV for hyperparameter tuning
+    # Train the model using RandomForest with hyperparameter tuning
     param_grid = {
         'n_estimators': [200],
         'max_depth': [20],
@@ -67,58 +86,52 @@ def get_predictions(budgets):
     grid_search = GridSearchCV(estimator=RandomForestRegressor(random_state=42), param_grid=param_grid, cv=5)
     grid_search.fit(x_train, y_train)
 
-    best_model = grid_search.best_estimator_
+    # Make predictions
+    y_pred = grid_search.predict(x)
 
-    # Step 1: Predict future spending on the entire dataset
-    y_pred = best_model.predict(x)
-
-    # Step 2: Inverse transform to get actual values for the predicted amounts
+    # Inverse transform scaled predictions
     y_pred_actual = scaler.inverse_transform(y_pred.reshape(-1, 1))
     y_actual = scaler.inverse_transform(y.values.reshape(-1, 1))
 
-    # Step 3: Add predicted future amounts and current amount to the dataset
+    # Add predictions and current amounts to the dataset
     data['Predicted Future Amount'] = y_pred_actual.flatten()
-    data['Actual Future Amount'] = y_actual.flatten()
     data['Current Amount'] = scaler.inverse_transform(data['amount'].values.reshape(-1, 1)).flatten()
 
-    # Step 4: Compare predicted amounts with the budget
-    category_summary = data.groupby('category').agg({
+    # Aggregate data by category
+    summary = data.groupby('category').agg({
         'Current Amount': 'sum',
         'Predicted Future Amount': 'sum'
+
     }).reset_index()
 
-    # Map the encoded category values back to the original category names
-    category_summary['Original Category'] = category_summary['category'].map(category_mapping)
-    
-    # Map the budgets using the original category names, handle missing budgets
-    category_summary['Budget'] = category_summary['Original Category'].map(budgets).fillna(0)
+    # Map categories back to original names
+    summary['Original Category'] = summary['category'].map(category_mapping)
 
-    # Step 5: Handle NaN or Inf values before performing any further operations
-    category_summary['Predicted Future Amount'] = category_summary['Predicted Future Amount'].fillna(0).replace([float('inf'), float('-inf')], 0)
-    category_summary['Budget'] = category_summary['Budget'].fillna(0).replace([float('inf'), float('-inf')], 0)
+    # Add budgets and recommendations
+    summary['Budget'] = summary['Original Category'].map(budgets).fillna(0)
+    summary['Budget Difference'] = summary['Predicted Future Amount'] - summary['Budget']
+    summary['Recommendation'] = summary['Budget Difference'].apply(lambda x: 'Spend Less' if x > 0 else 'On Track')
 
-    # Step 6: Calculate Budget Difference safely
-    category_summary['Budget Difference'] = (category_summary['Predicted Future Amount'] - category_summary['Budget']).round()
+    # Format output
+    summary['Current Amount'] = summary['Current Amount'].round(2)
+    summary['Predicted Future Amount'] = summary['Predicted Future Amount'].round(2)
+    summary['Budget Difference'] = summary['Budget Difference'].round(2)
+    summary['Recommended Budget'] = summary['Predicted Future Amount'] * 1.1
+    # Drop the numerical category column to keep only the original category names
+    summary = summary.drop(columns=['category'])
 
-    # Step 7: Apply recommendations
-    category_summary['Recommendation'] = category_summary['Budget Difference'].apply(
-        lambda x: 'Spend Less' if x > 0 else 'On Track'
-    )
+    return summary
 
-    # Convert to whole numbers
-    category_summary['Current Amount'] = category_summary['Current Amount'].round().astype(int)
-    category_summary['Predicted Future Amount'] = category_summary['Predicted Future Amount'].round().astype(int)
-    category_summary['Recommended Budget'] = (category_summary['Predicted Future Amount'] * 1.1).round().astype(int)
-    category_summary['Budget'] = category_summary['Budget'].round().astype(int)
 
-    # Print category-wise recommendations with current amounts
-    print("\nCategory-wise Recommendations:")
-    print(category_summary[['Original Category', 'Current Amount', 'Predicted Future Amount', 'Budget', 'Recommended Budget', 'Recommendation']])
-
-    return category_summary
-
-# Sample call for testing (you would call this function with actual budget data from the API)
 if __name__ == "__main__":
-    recommendations = get_predictions()
-    print("\nFinal Recommendations:")
-    print(recommendations)
+    try:
+        # Get file path and budgets from arguments
+        file_path = sys.argv[1]
+        budgets = json.loads(sys.argv[2])
+
+        # Perform analysis
+        result = analyze(file_path, budgets)
+        print(result.to_json(orient='records'))
+    except Exception as e:
+        print(json.dumps({"error": str(e)}))
+        sys.exit(1)
