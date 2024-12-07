@@ -10,12 +10,12 @@ import { SpendingTrend, SpendingTrendSchema } from '../schemas/spending_trend.sc
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb://localhost:27017/finance-tracker'),
-    MongooseModule.forFeature([
-      { name: AnalysisReport.name, schema: AnalysisReportSchema },
-      { name: SpendingRecommendation.name, schema: SpendingRecommendationSchema },
-      { name: SpendingTrend.name, schema: SpendingTrendSchema },
-    ]),
+    // MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb://localhost:27017/finance-tracker'),
+    // MongooseModule.forFeature([
+    //   { name: AnalysisReport.name, schema: AnalysisReportSchema },
+    //   { name: SpendingRecommendation.name, schema: SpendingRecommendationSchema },
+    //   { name: SpendingTrend.name, schema: SpendingTrendSchema },
+    // ]),
   ],
   controllers: [AnalysisController],
   providers: [AnalysisService],
