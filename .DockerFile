@@ -1,6 +1,6 @@
 FROM node:16
 
-# Install Python and necessary dependencies
+# Install Python3 and pip
 RUN apt-get update && apt-get install -y python3 python3-pip && \
     ln -s /usr/bin/python3 /usr/bin/python
 
