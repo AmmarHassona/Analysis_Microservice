@@ -17,12 +17,12 @@ import { EventEmitter2, EventEmitterModule } from '@nestjs/event-emitter';
   imports: [
     ConfigModule.forRoot(),
     EventEmitterModule.forRoot(),
-    MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb://localhost:27017/analysis'),
-    MongooseModule.forFeature([
-      { name: AnalysisReport.name, schema: AnalysisReportSchema },
-      { name: SpendingRecommendation.name, schema: SpendingRecommendationSchema },
-      { name: SpendingTrend.name, schema: SpendingTrendSchema },
-    ]),
+    // MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb://localhost:27017/analysis'),
+    // MongooseModule.forFeature([
+    //   { name: AnalysisReport.name, schema: AnalysisReportSchema },
+    //   { name: SpendingRecommendation.name, schema: SpendingRecommendationSchema },
+    //   { name: SpendingTrend.name, schema: SpendingTrendSchema },
+    // ]),
     HttpModule,
     ClientsModule.register([
       {
