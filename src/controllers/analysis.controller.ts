@@ -1,21 +1,24 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Param, Post, Body, Logger } from '@nestjs/common';
 import { AnalysisService } from '../services/analysis.service';
-import { SpendingTrendDto } from '../dto/spending-trend.dto';
-import { SpendingRecommendationDto } from '../dto/spending-recommendation.dto';
 
 @Controller('analysis')
 export class AnalysisController {
+  private readonly logger = new Logger(AnalysisController.name);
+
   constructor(private readonly analysisService: AnalysisService) {}
 
-  @Get('trends')
-  async getTrends(): Promise<SpendingTrendDto[]> {
-    console.log('Controller: Fetching spending trends...');
-    return this.analysisService.getTrends();
-  }
+  @Post(':userId/budget')
+  async analyzeBudget(
+    @Param('userId') userId: string, 
+    @Body() body: { budgets: Record<string, number> },
+  ) {
+    const { budgets } = body;
 
-  @Get('recommendations')
-  async getRecommendations(): Promise<SpendingRecommendationDto[]> {
-    console.log('Controller: Fetching spending recommendations...');
-    return this.analysisService.getRecommendations();
+    if (!budgets) {
+      return { error: 'Budgets not provided' };
+    }
+
+    this.logger.log(`Received budgets for userId: ${userId}`);
+    return await this.analysisService.analyzeBudget(userId, budgets);
   }
 }

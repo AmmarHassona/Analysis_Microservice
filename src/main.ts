@@ -1,16 +1,22 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import * as dotenv from 'dotenv';
-
-dotenv.config();
+import { Logger } from '@nestjs/common';
+import { Transport } from '@nestjs/microservices';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  
-  const port = process.env.PORT;
+  const logger = new Logger('Main');
 
-  await app.listen(port || 3000);
-  console.log(`Application is running on: http://localhost:${port}`);
+  // Create the main app
+  const app = await NestFactory.create(AppModule);
+
+  // Connect the microservice for RabbitMQ
+
+
+  await app.startAllMicroservices();
+  await app.listen(3000);
+
+  logger.log('HTTP Server listening on http://localhost:3000');
+  logger.log('Microservice connected to RabbitMQ');
 }
 
 bootstrap();
