@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "ts-node src/main.ts",
-    "postinstall": "apt-get update && apt-get install -y python3 python3-pip && ln -s /usr/bin/python3 /usr/bin/python",
+    "postinstall": "apt-get update && apt-get install -y python3 python3-pip && ln -s /usr/bin/python3 /usr/bin/python && pip3 install -r requirements.txt",
     "build": "tsc",
     "start:prod": "node dist/main.js",
     "start:dev": "nest start --watch",
