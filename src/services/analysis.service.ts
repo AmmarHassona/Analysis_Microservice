@@ -15,6 +15,7 @@ export class AnalysisService {
       // Explicitly use 'python3' instead of 'python'
       const command = `python3 "${scriptPath}" "${filePath}" "${budgetsString}"`;
 
+
       this.logger.log(`Executing command: ${command}`);
 
       exec(command, (error, stdout, stderr) => {
