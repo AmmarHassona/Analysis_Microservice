@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { Logger } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { Transport } from '@nestjs/microservices';
 
 async function bootstrap() {
@@ -11,6 +11,12 @@ async function bootstrap() {
 
   // Connect the microservice for RabbitMQ
 
+
+  app.enableCors({
+    origin: 'http://localhost:3000', // Allow only the frontend origin
+    credentials: true, // Allow credentials (cookies, headers, etc.)
+  });
+app.useGlobalPipes(new ValidationPipe({ transform: true }));
 
   await app.startAllMicroservices();
   await app.listen(3000);
