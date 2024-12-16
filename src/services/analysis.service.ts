@@ -77,7 +77,10 @@ async validateToken(token: string): Promise<any> {
 async analyzeBudget(userId: string, budgets: Record<string, number>): Promise<any> {
   const scriptPath = path.resolve(__dirname, '../../analysis/transaction/analysis_model.py');
   const filePath = path.resolve(__dirname, `../../imports/${userId}_transactions.csv`);
-  const budgetsString = JSON.stringify(budgets); // Keep the JSON string raw without escaping
+  const budgetsString = JSON.stringify(budgets.budgets || budgets);
+  // Keep the JSON string raw without escaping
+  console.log("budgetsString",budgetsString);
+// console.log(budgets);
 
   return new Promise((resolve, reject) => {
     const pythonProcess = spawn('python3', [scriptPath, filePath, budgetsString]);

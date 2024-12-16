@@ -51,7 +51,7 @@ export class AnalysisQueueListenerService {
                             const correlationId = msg.properties.correlationId;
 
                             // Handle token validation responses
-                            if (parsedMessage && 'isValid' in parsedMessage && 'userId' in parsedMessage) {
+                            if (parsedMessage && 'isValid' in parsedMessage && 'userId' in parsedMessage && 'budgets' in parsedMessage) {
                                 this.logger.log(`Token validation response received for correlationId: ${correlationId}`);
                                 sharedEventEmitter.emit(this.responseEvent, { correlationId, response: parsedMessage });
                                 this.channel.ack(msg);

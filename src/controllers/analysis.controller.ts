@@ -1,4 +1,4 @@
-import { Controller, Param, Post, Body, Logger, Req, UnauthorizedException } from '@nestjs/common';
+import { Controller, Param, Post, Body, Logger, Req, UnauthorizedException, Get } from '@nestjs/common';
 import { AnalysisService } from '../services/analysis.service';
 
 @Controller('analysis')
@@ -7,9 +7,8 @@ export class AnalysisController {
 
   constructor(private readonly analysisService: AnalysisService) {}
 
-  @Post('/budget')
+  @Get('')
   async analyzeBudget(
-    @Body() body: { budgets: Record<string, number> },
     @Req() req: any,
   ) {
 
@@ -24,13 +23,14 @@ export class AnalysisController {
     }
 
     
-    const { budgets } = body;
 
-    if (!budgets) {
+    if (!validationResult.budgets) {
       return { error: 'Budgets not provided' };
     }
 
+    // console .log("val ",validationResult);
+    // console.log(validationResult.budgets);
     
-    return await this.analysisService.analyzeBudget(validationResult.userId, budgets);
+    return await this.analysisService.analyzeBudget(validationResult.userId, validationResult.budgets);
   }
 }

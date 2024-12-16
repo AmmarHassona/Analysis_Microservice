@@ -138,11 +138,11 @@ if __name__ == "__main__":
         # Log the raw input for debugging
         # print(f"File Path: {sys.argv[1]}")
         # print(f"Raw Budgets Input: {sys.argv[2]}")
-
+        
         # Parse JSON
         file_path = sys.argv[1]
         budgets = json.loads(sys.argv[2])
-
+        # print(budgets)
         # Perform analysis
         result = analyze(file_path, budgets)
         print(result.to_json(orient='records'))
