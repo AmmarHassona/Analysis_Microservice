@@ -1,4 +1,4 @@
-import { Controller, Param, Post, Body, Logger } from '@nestjs/common';
+import { Controller, Param, Post, Body, Logger, Req, UnauthorizedException } from '@nestjs/common';
 import { AnalysisService } from '../services/analysis.service';
 
 @Controller('analysis')
@@ -7,18 +7,30 @@ export class AnalysisController {
 
   constructor(private readonly analysisService: AnalysisService) {}
 
-  @Post(':userId/budget')
+  @Post('/budget')
   async analyzeBudget(
-    @Param('userId') userId: string, 
     @Body() body: { budgets: Record<string, number> },
+    @Req() req: any,
   ) {
+
+    const token = (req.headers.authorization as string)?.split(' ')[1];
+    if (!token) {
+        throw new UnauthorizedException('Authorization token is required');
+    }
+
+    const validationResult = await this.analysisService.validateToken(token);
+    if (!validationResult.isValid) {
+        throw new UnauthorizedException('Token validation failed');
+    }
+
+    
     const { budgets } = body;
 
     if (!budgets) {
       return { error: 'Budgets not provided' };
     }
 
-    this.logger.log(`Received budgets for userId: ${userId}`);
-    return await this.analysisService.analyzeBudget(userId, budgets);
+    
+    return await this.analysisService.analyzeBudget(validationResult.userId, budgets);
   }
 }

@@ -19,7 +19,7 @@ async function bootstrap() {
 app.useGlobalPipes(new ValidationPipe({ transform: true }));
 
   await app.startAllMicroservices();
-  await app.listen(3000);
+  await app.listen(3060);
 
   logger.log('HTTP Server listening on http://localhost:3000');
   logger.log('Microservice connected to RabbitMQ');
