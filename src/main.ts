@@ -19,7 +19,11 @@ async function bootstrap() {
 app.useGlobalPipes(new ValidationPipe({ transform: true }));
 
   await app.startAllMicroservices();
-  await app.listen(3060);
+
+  const PORT = process.env.PORT || 3000; // Railway assigns a PORT
+  await app.listen(PORT, () => {
+    console.log(`Application running on port ${PORT}`);
+  });
 
   logger.log('HTTP Server listening on http://localhost:3000');
   logger.log('Microservice connected to RabbitMQ');
