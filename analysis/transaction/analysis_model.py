@@ -4,7 +4,6 @@ import json
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import r2_score
 
 def fetch_data(file_path):
     # Load and preprocess the CSV file
@@ -73,21 +72,34 @@ def analyze(file_path, budgets):
     x = data.drop(columns=['amount', 'future_amount', 'transactionDate', 'userId'], errors='ignore')
     y = data['future_amount']
 
+    # Check dataset size
+    if len(x) < 5:
+        raise ValueError("Not enough data for training. At least 5 samples are required.")
+
     # Split data into training and testing sets
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
 
-    # Train the model using RandomForest with hyperparameter tuning
-    param_grid = {
-        'n_estimators': [200],
-        'max_depth': [20],
-        'min_samples_split': [5],
-        'min_samples_leaf': [2]
-    }
-    grid_search = GridSearchCV(estimator=RandomForestRegressor(random_state=42), param_grid=param_grid, cv=5)
-    grid_search.fit(x_train, y_train)
+    # Train the model
+    if len(x_train) < 10:  # Small dataset condition
+        model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)
+        model.fit(x_train, y_train)
+    else:
+        param_grid = {
+            'n_estimators': [200],
+            'max_depth': [20],
+            'min_samples_split': [5],
+            'min_samples_leaf': [2]
+        }
+        grid_search = GridSearchCV(
+            estimator=RandomForestRegressor(random_state=42),
+            param_grid=param_grid,
+            cv=min(5, len(x_train))  # Adjust CV splits for small datasets
+        )
+        grid_search.fit(x_train, y_train)
+        model = grid_search.best_estimator_
 
     # Make predictions
-    y_pred = grid_search.predict(x)
+    y_pred = model.predict(x)
 
     # Inverse transform scaled predictions
     y_pred_actual = scaler.inverse_transform(y_pred.reshape(-1, 1))
@@ -101,7 +113,6 @@ def analyze(file_path, budgets):
     summary = data.groupby('category').agg({
         'Current Amount': 'sum',
         'Predicted Future Amount': 'sum'
-
     }).reset_index()
 
     # Map categories back to original names
@@ -117,15 +128,18 @@ def analyze(file_path, budgets):
     summary['Predicted Future Amount'] = summary['Predicted Future Amount'].round(2)
     summary['Budget Difference'] = summary['Budget Difference'].round(2)
     summary['Recommended Budget'] = summary['Predicted Future Amount'] * 1.1
-    # Drop the numerical category column to keep only the original category names
-    summary = summary.drop(columns=['category'])
+    summary = summary.drop(columns=['category'])  # Drop numeric category
 
     return summary
 
 
 if __name__ == "__main__":
     try:
-        # Get file path and budgets from arguments
+        # Log the raw input for debugging
+        # print(f"File Path: {sys.argv[1]}")
+        # print(f"Raw Budgets Input: {sys.argv[2]}")
+
+        # Parse JSON
         file_path = sys.argv[1]
         budgets = json.loads(sys.argv[2])
 

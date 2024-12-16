@@ -2,6 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as amqp from 'amqplib';
 import { exec } from 'child_process';
 import * as path from 'path';
+import * as base64 from 'base-64';
+import { Buffer } from 'buffer';
+import * as fs from 'fs';
+import { spawn } from 'child_process';
+
 
 import { EventEmitter2 } from 'eventemitter2';
 import { sharedEventEmitter } from '../utils/shared-event-emitter';
@@ -69,37 +74,45 @@ async validateToken(token: string): Promise<any> {
 }
 
 
+async analyzeBudget(userId: string, budgets: Record<string, number>): Promise<any> {
+  const scriptPath = path.resolve(__dirname, '../../analysis/transaction/analysis_model.py');
+  const filePath = path.resolve(__dirname, `../../imports/${userId}_transactions.csv`);
+  const budgetsString = JSON.stringify(budgets); // Keep the JSON string raw without escaping
 
-  async analyzeBudget(userId: string, budgets: Record<string, number>): Promise<any> {
-    const scriptPath = path.resolve(__dirname, '../../analysis/transaction/analysis_model.py');
-    const filePath = path.resolve(__dirname, `../../imports/${userId}_transactions.csv`);
-    const budgetsString = JSON.stringify(budgets).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return new Promise((resolve, reject) => {
+    const pythonProcess = spawn('python3', [scriptPath, filePath, budgetsString]);
 
+    let stdout = '';
+    let stderr = '';
 
-    return new Promise((resolve, reject) => {
-      // Explicitly use 'python3' instead of 'python'
-      const command = `python3 "${scriptPath}" "${filePath}" "${budgetsString}"`;
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
 
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
 
-      this.logger.log(`Executing command: ${command}`);
-
-      exec(command, (error, stdout, stderr) => {
-        if (error) {
-          this.logger.error(`Python script execution failed: ${stderr || error.message}`);
-          reject(`Error analyzing budget: ${stderr || error.message}`);
-          return;
-        }
-      
-        this.logger.log(`Python script output: ${stdout.trim()}`);
+    pythonProcess.on('close', (code) => {
+      if (code !== 0) {
+        this.logger.error(`Python script execution failed with code ${code}`);
+        this.logger.error(`stderr: ${stderr}`);
+        this.logger.error(`stdout: ${stdout}`);
+        reject(`Error analyzing budget: ${stderr || stdout || 'Unknown error'}`);
+      } else {
         try {
+          this.logger.log(`Raw Python script output: ${stdout.trim()}`);
           const result = JSON.parse(stdout.trim());
           resolve(result);
         } catch (parseError) {
           this.logger.error(`Error parsing Python script output: ${(parseError as Error).message}`);
+          this.logger.error(`Raw output: ${stdout.trim()}`);
           reject('Invalid response from analysis script');
         }
-      });
-      
+      }
     });
-  }
+  });
+}
+
+
 }

@@ -6,6 +6,7 @@ import { AnalysisController } from '../controllers/analysis.controller';
 import { AnalysisReport, AnalysisReportSchema } from '../schemas/analysis_report.schema';
 import { SpendingRecommendation, SpendingRecommendationSchema } from '../schemas/spending_recommendation.schema';
 import { SpendingTrend, SpendingTrendSchema } from '../schemas/spending_trend.schema';
+import * as base64 from 'base-64';
 
 @Module({
   imports: [

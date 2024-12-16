@@ -10,6 +10,7 @@ import { SpendingRecommendation, SpendingRecommendationSchema } from './schemas/
 import { SpendingTrend, SpendingTrendSchema } from './schemas/spending_trend.schema';
 import{AnalysisQueueListenerService} from './services/analysisQueueListen.service';
 import { EventEmitter2, EventEmitterModule } from '@nestjs/event-emitter';
+import base64 from 'base-64';
 
 
 
