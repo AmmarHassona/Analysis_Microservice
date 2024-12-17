@@ -4,6 +4,11 @@ import json
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
+import matplotlib.pyplot as plt
+import seaborn as sns
+import base64
+from io import BytesIO
+import os
 
 def fetch_data(file_path):
     # Load and preprocess the CSV file
@@ -132,20 +137,96 @@ def analyze(file_path, budgets):
 
     return summary
 
+def visualize_data(file_path, budgets):
+    data = pd.read_csv(file_path)
+    data.rename(columns={
+        'Transaction Date': 'transactionDate',
+        'Amount': 'amount',
+        'Vendor Name': 'vendorName',
+        'Category': 'category',
+        'Payment Method': 'paymentMethod',
+        'Place': 'place',
+        'User ID': 'userId'
+    }, inplace=True, errors='ignore')
+
+    data['amount'] = data['amount'].astype(float)
+
+    images = {}
+
+    # Histogram: Vendor Name vs. Amount
+    plt.figure(figsize=(12, 6))
+    sns.barplot(x='vendorName', y='amount', data=data, ci=None)
+    plt.title('Histogram: Vendor Name vs. Amount')
+    plt.xticks(rotation=45, ha='right')
+    plt.xlabel('Vendor Name')
+    plt.ylabel('Amount')
+    buf = BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    images['vendor_vs_amount'] = base64.b64encode(buf.read()).decode('utf-8')
+    buf.close()
+    plt.close()
+
+    # Pie Chart: Total Amount by Payment Method
+    plt.figure(figsize=(8, 8))
+    payment_method_totals = data.groupby('paymentMethod')['amount'].sum()
+    payment_method_totals.plot(kind='pie', autopct='%1.1f%%', startangle=140)
+    plt.title('Total Amount by Payment Method')
+    buf = BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    images['payment_method_pie'] = base64.b64encode(buf.read()).decode('utf-8')
+    buf.close()
+    plt.close()
+
+    # Pie Chart: Total Amount by Category
+    plt.figure(figsize=(8, 8))
+    category_totals = data.groupby('category')['amount'].sum()
+    category_totals.plot(kind='pie', autopct='%1.1f%%', startangle=140)
+    plt.title('Total Amount by Category')
+    buf = BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    images['category_pie'] = base64.b64encode(buf.read()).decode('utf-8')
+    buf.close()
+    plt.close()
+
+    # Bar Chart: Total Spending by Category vs. Budget
+    category_spending = data.groupby('category')['amount'].sum().reset_index()
+    category_spending['budget'] = category_spending['category'].map(budgets)
+    plt.figure(figsize=(12, 6))
+    sns.barplot(x='category', y='amount', data=category_spending, label='Spending', color='blue')
+    sns.barplot(x='category', y='budget', data=category_spending, label='Budget', color='orange', alpha=0.6)
+    plt.title('Total Spending by Category vs. Budget')
+    plt.xticks(rotation=45, ha='right')
+    buf = BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    images['spending_vs_budget'] = base64.b64encode(buf.read()).decode('utf-8')
+    buf.close()
+    plt.close()
+
+    return images
+
+
 
 if __name__ == "__main__":
     try:
-        # Log the raw input for debugging
-        # print(f"File Path: {sys.argv[1]}")
-        # print(f"Raw Budgets Input: {sys.argv[2]}")
-        
-        # Parse JSON
         file_path = sys.argv[1]
         budgets = json.loads(sys.argv[2])
-        # print(budgets)
+
         # Perform analysis
         result = analyze(file_path, budgets)
-        print(result.to_json(orient='records'))
+
+        images = visualize_data(file_path, budgets)
+
+        # Combine results and images
+        output = {
+            "analysis": result.to_dict(orient='records'),
+            "images": images
+        }
+
+        print(json.dumps(output))
     except Exception as e:
         print(json.dumps({"error": str(e)}))
         sys.exit(1)

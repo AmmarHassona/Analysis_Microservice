@@ -74,13 +74,16 @@ async validateToken(token: string): Promise<any> {
 }
 
 
+
+
+
+
 async analyzeBudget(userId: string, budgets: Record<string, number>): Promise<any> {
   const scriptPath = path.resolve(__dirname, '../../analysis/transaction/analysis_model.py');
   const filePath = path.resolve(__dirname, `../../imports/${userId}_transactions.csv`);
   const budgetsString = JSON.stringify(budgets.budgets || budgets);
-  // Keep the JSON string raw without escaping
-  console.log("budgetsString",budgetsString);
-// console.log(budgets);
+
+  console.log("Budgets JSON String:", budgetsString);
 
   return new Promise((resolve, reject) => {
     const pythonProcess = spawn('python3', [scriptPath, filePath, budgetsString]);
@@ -98,19 +101,39 @@ async analyzeBudget(userId: string, budgets: Record<string, number>): Promise<an
 
     pythonProcess.on('close', (code) => {
       if (code !== 0) {
-        this.logger.error(`Python script execution failed with code ${code}`);
-        this.logger.error(`stderr: ${stderr}`);
-        this.logger.error(`stdout: ${stdout}`);
-        reject(`Error analyzing budget: ${stderr || stdout || 'Unknown error'}`);
+        console.error(`Python script execution failed with code ${code}`);
+        console.error(`stderr: ${stderr}`);
+        console.error(`stdout: ${stdout}`);
+        reject(new Error(`Error analyzing budget: ${stderr || stdout || 'Unknown error'}`));
       } else {
         try {
-          this.logger.log(`Raw Python script output: ${stdout.trim()}`);
-          const result = JSON.parse(stdout.trim());
-          resolve(result);
+          // Trim and parse output
+          const trimmedOutput = stdout.trim();
+
+          console.log("Raw Python Script Output:", trimmedOutput);
+
+          // Check for valid JSON starting at '{' or '['
+          const jsonStartIndex = trimmedOutput.indexOf('{') !== -1 ? trimmedOutput.indexOf('{') : trimmedOutput.indexOf('[');
+          if (jsonStartIndex === -1) {
+            throw new Error('No valid JSON output detected.');
+          }
+
+          const jsonOutput = trimmedOutput.substring(jsonStartIndex);
+          const parsedResult = JSON.parse(jsonOutput);
+
+          // Separate analysis and images if structure includes "images"
+          if (parsedResult.analysis && parsedResult.images) {
+            console.log("Analysis Data:", parsedResult.analysis);
+            console.log("Encoded Images Data:", parsedResult.images);
+            resolve(parsedResult);
+          } else {
+            console.log("Parsed Result:", parsedResult);
+            resolve(parsedResult); // Fallback to general result
+          }
         } catch (parseError) {
-          this.logger.error(`Error parsing Python script output: ${(parseError as Error).message}`);
-          this.logger.error(`Raw output: ${stdout.trim()}`);
-          reject('Invalid response from analysis script');
+          console.error(`Error parsing Python script output: ${(parseError as Error).message}`);
+          console.error(`Raw output: ${stdout.trim()}`);
+          reject(new Error('Invalid response from analysis script'));
         }
       }
     });

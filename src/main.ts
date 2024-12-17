@@ -20,7 +20,7 @@ app.useGlobalPipes(new ValidationPipe({ transform: true }));
 
   await app.startAllMicroservices();
 
-  const PORT = process.env.PORT || 3000; // Railway assigns a PORT
+  const PORT = process.env.PORT || 5000; // Railway assigns a PORT
   await app.listen(PORT, () => {
     console.log(`Application running on port ${PORT}`);
   });
