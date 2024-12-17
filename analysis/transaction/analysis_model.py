@@ -53,8 +53,8 @@ def fetch_data(file_path):
     category_mapping = {}
 
     for col in categorical_cols:
-        if col == 'category':  # Save original and encoded categories
-            data['Encoded Category'] = encoder.fit_transform(data[col])
+        if col == 'category':  # Save category mapping
+            data[col] = encoder.fit_transform(data[col])
             category_mapping = dict(enumerate(encoder.classes_))
         else:
             data[col] = encoder.fit_transform(data[col])
@@ -77,34 +77,21 @@ def analyze(file_path, budgets):
     x = data.drop(columns=['amount', 'future_amount', 'transactionDate', 'userId'], errors='ignore')
     y = data['future_amount']
 
-    # Check dataset size
-    if len(x) < 5:
-        raise ValueError("Not enough data for training. At least 5 samples are required.")
-
     # Split data into training and testing sets
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
 
-    # Train the model
-    if len(x_train) < 10:  # Small dataset condition
-        model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)
-        model.fit(x_train, y_train)
-    else:
-        param_grid = {
-            'n_estimators': [200],
-            'max_depth': [20],
-            'min_samples_split': [5],
-            'min_samples_leaf': [2]
-        }
-        grid_search = GridSearchCV(
-            estimator=RandomForestRegressor(random_state=42),
-            param_grid=param_grid,
-            cv=min(5, len(x_train))  # Adjust CV splits for small datasets
-        )
-        grid_search.fit(x_train, y_train)
-        model = grid_search.best_estimator_
+    # Train the model using RandomForest with hyperparameter tuning
+    param_grid = {
+        'n_estimators': [200],
+        'max_depth': [20],
+        'min_samples_split': [5],
+        'min_samples_leaf': [2]
+    }
+    grid_search = GridSearchCV(estimator=RandomForestRegressor(random_state=42), param_grid=param_grid, cv=5)
+    grid_search.fit(x_train, y_train)
 
     # Make predictions
-    y_pred = model.predict(x)
+    y_pred = grid_search.predict(x)
 
     # Inverse transform scaled predictions
     y_pred_actual = scaler.inverse_transform(y_pred.reshape(-1, 1))
@@ -115,14 +102,14 @@ def analyze(file_path, budgets):
     data['Current Amount'] = scaler.inverse_transform(data['amount'].values.reshape(-1, 1)).flatten()
 
     # Aggregate data by category
-    summary = data.groupby('Encoded Category').agg({
-    'Current Amount': 'sum',
-    'Predicted Future Amount': 'sum'
+    summary = data.groupby('category').agg({
+        'Current Amount': 'sum',
+        'Predicted Future Amount': 'sum'
+
     }).reset_index()
 
     # Map categories back to original names
-    summary['Original Category'] = summary['Encoded Category'].map(category_mapping)
-
+    summary['Original Category'] = summary['category'].map(category_mapping)
 
     # Add budgets and recommendations
     summary['Budget'] = summary['Original Category'].map(budgets).fillna(0)
@@ -134,7 +121,8 @@ def analyze(file_path, budgets):
     summary['Predicted Future Amount'] = summary['Predicted Future Amount'].round(2)
     summary['Budget Difference'] = summary['Budget Difference'].round(2)
     summary['Recommended Budget'] = summary['Predicted Future Amount'] * 1.1
-    summary = summary.drop(columns=['category'])  # Drop numeric category
+    # Drop the numerical category column to keep only the original category names
+    summary = summary.drop(columns=['category'])
 
     return summary
 
