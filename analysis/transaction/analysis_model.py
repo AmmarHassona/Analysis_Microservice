@@ -56,7 +56,8 @@ def fetch_data(file_path):
         if col == 'category':  # Save original and encoded categories
             data['Encoded Category'] = encoder.fit_transform(data[col])
             category_mapping = dict(enumerate(encoder.classes_))
-
+        else:
+            data[col] = encoder.fit_transform(data[col])
 
     # Standardize numeric data
     scaler = StandardScaler()
