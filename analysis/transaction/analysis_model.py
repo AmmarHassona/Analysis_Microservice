@@ -53,8 +53,8 @@ def fetch_data(file_path):
     category_mapping = {}
 
     for col in categorical_cols:
-        if col == 'category':  # Save category mapping
-            data[col] = encoder.fit_transform(data[col])
+        if col == 'category':  # Save original and encoded categories
+            data['Encoded Category'] = encoder.fit_transform(data[col])
             category_mapping = dict(enumerate(encoder.classes_))
         else:
             data[col] = encoder.fit_transform(data[col])
@@ -74,7 +74,7 @@ def analyze(file_path, budgets):
     data, scaler, category_mapping = fetch_data(file_path)
 
     # Define features and target
-    x = data.drop(columns=['amount', 'future_amount', 'transactionDate', 'userId'], errors='ignore')
+    x = data.drop(columns=['amount', 'future_amount', 'transactionDate', 'userId', 'category'], errors='ignore')
     y = data['future_amount']
 
     # Check dataset size
@@ -115,13 +115,13 @@ def analyze(file_path, budgets):
     data['Current Amount'] = scaler.inverse_transform(data['amount'].values.reshape(-1, 1)).flatten()
 
     # Aggregate data by category
-    summary = data.groupby('category').agg({
+    summary = data.groupby('Encoded Category').agg({
         'Current Amount': 'sum',
         'Predicted Future Amount': 'sum'
     }).reset_index()
 
     # Map categories back to original names
-    summary['Original Category'] = summary['category'].map(category_mapping)
+    summary['Original Category'] = summary['Encoded Category'].map(category_mapping)
 
     # Add budgets and recommendations
     summary['Budget'] = summary['Original Category'].map(budgets).fillna(0)
@@ -133,7 +133,6 @@ def analyze(file_path, budgets):
     summary['Predicted Future Amount'] = summary['Predicted Future Amount'].round(2)
     summary['Budget Difference'] = summary['Budget Difference'].round(2)
     summary['Recommended Budget'] = summary['Predicted Future Amount'] * 1.1
-    summary = summary.drop(columns=['category'])  # Drop numeric category
 
     return summary
 
@@ -142,42 +141,12 @@ def visualize_data(file_path, budgets):
     data.rename(columns={
         'Transaction Date': 'transactionDate',
         'Amount': 'amount',
-        'Vendor Name': 'vendorName',
-        'Category': 'category',
-        'Payment Method': 'paymentMethod',
-        'Place': 'place',
-        'User ID': 'userId'
+        'Category': 'category'
     }, inplace=True, errors='ignore')
 
     data['amount'] = data['amount'].astype(float)
 
     images = {}
-
-    # Histogram: Vendor Name vs. Amount
-    plt.figure(figsize=(12, 6))
-    sns.barplot(x='vendorName', y='amount', data=data, ci=None)
-    plt.title('Histogram: Vendor Name vs. Amount')
-    plt.xticks(rotation=45, ha='right')
-    plt.xlabel('Vendor Name')
-    plt.ylabel('Amount')
-    buf = BytesIO()
-    plt.savefig(buf, format="png")
-    buf.seek(0)
-    images['vendor_vs_amount'] = base64.b64encode(buf.read()).decode('utf-8')
-    buf.close()
-    plt.close()
-
-    # Pie Chart: Total Amount by Payment Method
-    plt.figure(figsize=(8, 8))
-    payment_method_totals = data.groupby('paymentMethod')['amount'].sum()
-    payment_method_totals.plot(kind='pie', autopct='%1.1f%%', startangle=140)
-    plt.title('Total Amount by Payment Method')
-    buf = BytesIO()
-    plt.savefig(buf, format="png")
-    buf.seek(0)
-    images['payment_method_pie'] = base64.b64encode(buf.read()).decode('utf-8')
-    buf.close()
-    plt.close()
 
     # Pie Chart: Total Amount by Category
     plt.figure(figsize=(8, 8))
@@ -191,24 +160,7 @@ def visualize_data(file_path, budgets):
     buf.close()
     plt.close()
 
-    # Bar Chart: Total Spending by Category vs. Budget
-    category_spending = data.groupby('category')['amount'].sum().reset_index()
-    category_spending['budget'] = category_spending['category'].map(budgets)
-    plt.figure(figsize=(12, 6))
-    sns.barplot(x='category', y='amount', data=category_spending, label='Spending', color='blue')
-    sns.barplot(x='category', y='budget', data=category_spending, label='Budget', color='orange', alpha=0.6)
-    plt.title('Total Spending by Category vs. Budget')
-    plt.xticks(rotation=45, ha='right')
-    buf = BytesIO()
-    plt.savefig(buf, format="png")
-    buf.seek(0)
-    images['spending_vs_budget'] = base64.b64encode(buf.read()).decode('utf-8')
-    buf.close()
-    plt.close()
-
     return images
-
-
 
 if __name__ == "__main__":
     try:
@@ -217,7 +169,6 @@ if __name__ == "__main__":
 
         # Perform analysis
         result = analyze(file_path, budgets)
-
         images = visualize_data(file_path, budgets)
 
         # Combine results and images
