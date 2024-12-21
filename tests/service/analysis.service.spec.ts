@@ -1,148 +1,105 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AnalysisService } from '../../src/services/analysis.service';
-import * as amqp from 'amqplib';
 import { spawn } from 'child_process';
-import { EventEmitter2 } from 'eventemitter2';
+import { UnauthorizedException } from '@nestjs/common';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import path from 'path';
 
-process.env.RABBITMQ_URL = 'amqp://uWrDtSMTnKyEsLAt:885N.tcwDaZqcaUt0M7aHXhuveiKH5bC@junction.proxy.rlwy.net:22410';
-jest.setTimeout(60000);
-
-// Mock amqplib.connect
-jest.mock('amqplib', () => ({
-    connect: jest.fn().mockImplementation((url) => {
-      if (url.includes('invalid')) {
-        return Promise.reject(new Error('RabbitMQ connection issue'));
-      }
-  
-      return Promise.resolve({
-        createChannel: jest.fn().mockResolvedValue({
-          assertQueue: jest.fn(),
-          sendToQueue: jest.fn(),
-        }),
-      });
+jest.mock('child_process', () => ({
+  spawn: jest.fn(() => ({
+    stdout: { on: jest.fn() },
+    stderr: { on: jest.fn() },
+    on: jest.fn((event, callback) => {
+      if (event === 'close') callback(0); // Simulate successful execution
     }),
-  }));   
+  })),
+}));
 
-// Mock child_process.spawn
-jest.mock('child_process', () => {
-    const mockSpawn = jest.fn();
-  
-    mockSpawn.mockImplementation((cmd, args) => {
-      if (args.includes('fail')) {
-        return {
-          stdout: {
-            on: jest.fn(),
-          },
-          stderr: {
-            on: jest.fn().mockImplementation((event, callback) => {
-              if (event === 'data') callback('error occurred');
-            }),
-          },
-          on: jest.fn().mockImplementation((event, callback) => {
-            if (event === 'close') callback(1);
-          }),
-        };
-      }
-  
-      return {
-        stdout: {
-          on: jest.fn().mockImplementation((event, callback) => {
-            if (event === 'data') callback(JSON.stringify({ analysis: 'success' }));
-          }),
-        },
-        stderr: { on: jest.fn() },
-        on: jest.fn().mockImplementation((event, callback) => {
-          if (event === 'close') callback(0);
-        }),
-      };
-    });
-  
-    return { spawn: mockSpawn };
-  });    
+jest.mock('amqplib', () => ({
+  connect: jest.fn().mockResolvedValue({
+    createChannel: jest.fn().mockResolvedValue({
+      assertQueue: jest.fn(),
+      sendToQueue: jest.fn(),
+    }),
+  }),
+}));
 
 describe('AnalysisService', () => {
   let service: AnalysisService;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
+    process.env.RABBITMQ_URL = 'amqp://uWrDtSMTnKyEsLAt:885N.tcwDaZqcaUt0M7aHXhuveiKH5bC@junction.proxy.rlwy.net:22410';
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [AnalysisService, EventEmitter2],
+      imports: [EventEmitterModule.forRoot()],
+      providers: [AnalysisService],
     }).compile();
 
     service = module.get<AnalysisService>(AnalysisService);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  afterAll(() => {
+    jest.clearAllMocks();
+    delete process.env.RABBITMQ_URL;
   });
 
-  describe('analyzeBudget', () => {
-    it('should return success if Python script runs successfully', async () => {
-      const mockSpawn = spawn as jest.Mock;
-      mockSpawn.mockReturnValue({
-        stdout: {
-          on: jest.fn().mockImplementation((event, callback) =>
-            event === 'data' ? callback(JSON.stringify({ analysis: 'success' })) : null
-          ),
-        },
-        stderr: { on: jest.fn() },
-        on: jest.fn().mockImplementation((event, callback) => {
-          if (event === 'close') callback(0);
-        }),
-      });
+  it('should validate token and return valid response', async () => {
+    const token = 'valid-token';
+    const result = await service.validateToken(token);
+    expect(result).toEqual({ valid: true });
+  } , 20000);
 
-      const result = await service.analyzeBudget('user123', { food: 200, transport: 100 });
-      expect(result).toEqual({ analysis: 'success' });
-      expect(spawn).toHaveBeenCalled();
+  it('should throw error if no token is provided', async () => {
+    process.env.RABBITMQ_URL = ''; // Simulate missing RabbitMQ URL
+    await expect(service.validateToken('')).rejects.toThrow(
+      new UnauthorizedException('RABBITMQ_URL is not defined')
+    );
+  });
+
+  it('should analyze budget and return results', async () => {
+    const mockPythonProcess = {
+      stdout: { on: jest.fn() },
+      stderr: { on: jest.fn() },
+      on: jest.fn((event, callback) => { if (event === 'close') callback(0); }), // simulate success
+    };
+
+    (spawn as jest.Mock).mockReturnValue(mockPythonProcess);
+
+    const mockResult = { result: 'success' };
+    mockPythonProcess.stdout.on.mockImplementation((event, callback) => {
+      if (event === 'data') callback(JSON.stringify(mockResult)); // mock Python output
     });
 
-    it('should throw error if Python script fails', async () => {
-        const mockSpawn = spawn as jest.Mock;
-        
-        mockSpawn.mockReturnValue({
-          stdout: {
-            on: jest.fn(),
-          },
-          stderr: {
-            on: jest.fn().mockImplementation((event, callback) => callback('error occurred')),
-          },
-          on: jest.fn().mockImplementation((event, callback) => {
-            if (event === 'close') callback(1);
-          }),
-        });
-      
-        await expect(
-          service.analyzeBudget('user123', { food: 200, transport: 100 })
-        ).rejects.toThrowError('Error analyzing budget: error occurred');
-      });           
+    const userId = 'user123';
+    const result = await service.analyzeBudget(userId, { food: 100, rent: 500 });
+    expect(result).toEqual(mockResult); // ensure correct result is returned
+
+    const expectedPythonArgs = [
+      'python3',
+      path.resolve(__dirname, '../../analysis/transaction/analysis_model.py'),
+      path.resolve(__dirname, `../../imports/${userId}_transactions.csv`), 
+      '{"food":100,"rent":500}',
+    ];
+    
+    expect(spawn).toHaveBeenCalledWith(...expectedPythonArgs);    
   });
 
-//   describe('validateToken', () => {
-//     it('should return success for a valid token without timing out', async () => {
-//       const mockAmqpConnect = amqp.connect as jest.Mock;
-  
-//       mockAmqpConnect.mockResolvedValue({
-//         createChannel: jest.fn().mockResolvedValue({
-//           assertQueue: jest.fn(),
-//           sendToQueue: jest.fn(),
-//         }),
-//       });
-  
-//       const result = await service.validateToken('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFtbWFyaGFzc29uYTE1QGdtYWlsLmNvbSIsInN1YiI6IjBmYmI4YzU1LWUwZDAtNDM4YS1iMTY1LWUxNjc4NWZhMDdlNyIsImlhdCI6MTczNDQ0NTI4MiwiZXhwIjoxNzM0NTMxNjgyfQ.U9wjsiu8ampbcaYC6tkXkcQ7OtUC-8BeFZxx-bRb-sI');
-//       expect(result).toHaveProperty('isValid');
-//       expect(result).toHaveProperty('userId');
-//     });
-  
-//     it('should timeout when RabbitMQ connection fails', async () => {
-//         const timeoutSpy = jest.spyOn(global, 'setTimeout');
-//         const mockAmqpConnect = amqp.connect as jest.Mock;
-      
-//         // Simulate RabbitMQ connection failure
-//         mockAmqpConnect.mockRejectedValueOnce(new Error('RabbitMQ connection issue'));
-      
-//         await expect(service.validateToken('valid_token')).rejects.toThrow('Connection error');
-        
-//         expect(timeoutSpy).toHaveBeenCalled();
-//         timeoutSpy.mockRestore();
-//       });      
-//   });  
+  it('should throw an error if Python script execution fails', async () => {
+    const mockPythonProcess = {
+      stdout: { on: jest.fn() },
+      stderr: { on: jest.fn() },
+      on: jest.fn((event, callback) => { if (event === 'close') callback(1); }), // simulate failure
+    };
+
+    (spawn as jest.Mock).mockReturnValue(mockPythonProcess);
+
+    mockPythonProcess.stderr.on.mockImplementation((event, callback) => {
+      if (event === 'data'){
+        callback('Error executing Python script');
+      }
+    });
+
+    const userId = 'user123';
+    await expect(service.analyzeBudget(userId, { food: 100, rent: 500 })).rejects.toThrow('Error analyzing budget: Error executing Python script');
+  });
 });
