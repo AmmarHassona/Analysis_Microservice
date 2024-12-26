@@ -40,7 +40,7 @@ def fetch_data(file_path):
     # Rolling averages and other features
     data['amount_bin'] = pd.cut(data['amount'], bins=3, labels=['Low', 'Medium', 'High'])
     data['rolling_avg_amount'] = data.groupby('userId')['amount'].transform(lambda x: x.rolling(3, min_periods=1).mean())
-
+    
     # Add frequency of transactions in each category
     data['category_frequency'] = data.groupby(['userId', 'category'])['category'].transform('count')
     
@@ -78,69 +78,58 @@ def analyze(file_path, budgets):
     # Fetch and preprocess the data
     data, scaler, category_mapping = fetch_data(file_path)
 
-    # Create an empty dataframe to store all category predictions
-    all_category_summary = []
+    # Define features and target
+    x = data.drop(columns=['amount', 'future_amount', 'transactionDate', 'userId'], errors='ignore')
+    y = data['future_amount']
 
-    # Loop through each unique category
-    for category in data['category'].unique():
-        # Filter data for the current category
-        category_data = data[data['category'] == category]
+    # Split data into training and testing sets
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
 
-        # Define features and target for this category
-        x = category_data.drop(columns=['amount', 'future_amount', 'transactionDate', 'userId'], errors='ignore')
-        y = category_data['future_amount']
+    # Train the model using RandomForest with hyperparameter tuning
+    param_grid = {
+        'n_estimators': [200],
+        'max_depth': [20],
+        'min_samples_split': [5],
+        'min_samples_leaf': [2]
+    }
+    grid_search = GridSearchCV(estimator=RandomForestRegressor(random_state=42), param_grid=param_grid, cv=5)
+    grid_search.fit(x_train, y_train)
 
-        # Split data into training and testing sets
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+    # Make predictions
+    y_pred = grid_search.predict(x)
 
-        # Train the model using RandomForest with hyperparameter tuning
-        param_grid = {
-            'n_estimators': [200],
-            'max_depth': [20],
-            'min_samples_split': [5],
-            'min_samples_leaf': [2]
-        }
-        grid_search = GridSearchCV(estimator=RandomForestRegressor(random_state=42), param_grid=param_grid, cv=5)
-        grid_search.fit(x_train, y_train)
+    # Inverse transform scaled predictions
+    y_pred_actual = scaler.inverse_transform(y_pred.reshape(-1, 1))
+    y_actual = scaler.inverse_transform(y.values.reshape(-1, 1))
 
-        # Make predictions for the current category
-        y_pred = grid_search.predict(x)
+    # Add predictions and current amounts to the dataset
+    data['Predicted Future Amount'] = y_pred_actual.flatten()
+    data['Current Amount'] = scaler.inverse_transform(data['amount'].values.reshape(-1, 1)).flatten()
 
-        # Inverse transform scaled predictions
-        y_pred_actual = scaler.inverse_transform(y_pred.reshape(-1, 1))
-        y_actual = scaler.inverse_transform(y.values.reshape(-1, 1))
+    # Aggregate data by category
+    summary = data.groupby('category').agg({
+        'Current Amount': 'sum',
+        'Predicted Future Amount': 'sum'
 
-        # Add predictions and current amounts to the dataset
-        category_data['Predicted Future Amount'] = y_pred_actual.flatten()
-        category_data['Current Amount'] = scaler.inverse_transform(category_data['amount'].values.reshape(-1, 1)).flatten()
+    }).reset_index()
 
-        # Aggregate data by category (for this category only)
-        summary = category_data.groupby('category').agg({
-            'Current Amount': 'sum',
-            'Predicted Future Amount': 'sum'
-        }).reset_index()
+    # Map categories back to original names
+    summary['Original Category'] = summary['category'].map(category_mapping)
 
-        # Map categories back to original names
-        summary['Original Category'] = summary['category'].map(category_mapping)
+    # Add budgets and recommendations
+    summary['Budget'] = summary['Original Category'].map(budgets).fillna(0)
+    summary['Budget Difference'] = summary['Predicted Future Amount'] - summary['Budget']
+    summary['Recommendation'] = summary['Budget Difference'].apply(lambda x: 'Spend Less' if x > 0 else 'On Track')
 
-        # Add budgets and recommendations for the category
-        summary['Budget'] = summary['Original Category'].map(budgets).fillna(0)
-        summary['Budget Difference'] = summary['Predicted Future Amount'] - summary['Budget']
-        summary['Recommendation'] = summary['Budget Difference'].apply(lambda x: 'Spend Less' if x > 0 else 'On Track')
+    # Format output
+    summary['Current Amount'] = summary['Current Amount'].round(2)
+    summary['Predicted Future Amount'] = summary['Predicted Future Amount'].round(2)
+    summary['Budget Difference'] = summary['Budget Difference'].round(2)
+    summary['Recommended Budget'] = (summary['Predicted Future Amount'] * 1.1)
+    # Drop the numerical category column to keep only the original category names
+    summary = summary.drop(columns=['category'])
 
-        # Format output for the current category
-        summary['Current Amount'] = summary['Current Amount'].round(2)
-        summary['Predicted Future Amount'] = summary['Predicted Future Amount'].round(2)
-        summary['Budget Difference'] = summary['Budget Difference'].round(2)
-        summary['Recommended Budget'] = (summary['Predicted Future Amount'] * 1.1)
-
-        # Add to the final summary
-        all_category_summary.append(summary.drop(columns=['category']))
-
-    # Combine all category summaries into one dataframe
-    final_summary = pd.concat(all_category_summary, ignore_index=True)
-
-    return final_summary
+    return summary
 
 def visualize_data(file_path, budgets):
     data = pd.read_csv(file_path)
