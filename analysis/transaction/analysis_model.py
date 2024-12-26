@@ -69,6 +69,7 @@ def fetch_data(file_path):
 
     return data, scaler, category_mapping
 
+
 def analyze(file_path, budgets):
     # Fetch and preprocess the data
     data, scaler, category_mapping = fetch_data(file_path)
@@ -91,10 +92,24 @@ def analyze(file_path, budgets):
     grid_search.fit(x_train, y_train)
 
     # Make predictions
-    y_pred = grid_search.predict(x)
+    y_pred = grid_search.predict(x_test)
+
+    # Calculate evaluation metrics on the test set
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+    mae = mean_absolute_error(y_test, y_pred)
+    mse = mean_squared_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
+
+    print("Model Evaluation Metrics:")
+    print(f"Mean Absolute Error (MAE): {mae}")
+    print(f"Mean Squared Error (MSE): {mse}")
+    print(f"R² Score: {r2}")
+
+    # Predict for the entire dataset for summary preparation
+    y_pred_full = grid_search.predict(x)
 
     # Inverse transform scaled predictions
-    y_pred_actual = scaler.inverse_transform(y_pred.reshape(-1, 1))
+    y_pred_actual = scaler.inverse_transform(y_pred_full.reshape(-1, 1))
     y_actual = scaler.inverse_transform(y.values.reshape(-1, 1))
 
     # Add predictions and current amounts to the dataset
@@ -124,7 +139,19 @@ def analyze(file_path, budgets):
     # Drop the numerical category column to keep only the original category names
     summary = summary.drop(columns=['category'])
 
+    # Visualization for validation (Optional)
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(10, 5))
+    plt.scatter(range(len(y_test)), y_test, label="Actual Test Values", alpha=0.6)
+    plt.scatter(range(len(y_pred)), y_pred, label="Predicted Test Values", alpha=0.6)
+    plt.title("Actual vs Predicted Test Values")
+    plt.xlabel("Sample Index")
+    plt.ylabel("Future Amount")
+    plt.legend()
+    plt.show()
+
     return summary
+
 
 def visualize_data(file_path, budgets):
     data = pd.read_csv(file_path)
