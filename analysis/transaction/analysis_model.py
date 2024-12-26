@@ -40,13 +40,8 @@ def fetch_data(file_path):
     # Rolling averages and other features
     data['amount_bin'] = pd.cut(data['amount'], bins=3, labels=['Low', 'Medium', 'High'])
     data['rolling_avg_amount'] = data.groupby('userId')['amount'].transform(lambda x: x.rolling(3, min_periods=1).mean())
-    
-    # Add frequency of transactions in each category
     data['category_frequency'] = data.groupby(['userId', 'category'])['category'].transform('count')
-    
-    # Calculate time difference between consecutive transactions (in days)
-    data['time_diff'] = data.groupby(['userId', 'category'])['transactionDate'].diff().dt.days
-    
+
     # Aggregate monthly totals
     monthly_totals = data.groupby(['userId', 'year', 'month'])['amount'].sum().reset_index(name='monthly_total')
     data = pd.merge(data, monthly_totals, on=['userId', 'year', 'month'], how='left')
