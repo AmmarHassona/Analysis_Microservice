@@ -120,7 +120,7 @@ def analyze(file_path, budgets):
     summary['Current Amount'] = summary['Current Amount'].round(2)
     summary['Predicted Future Amount'] = summary['Predicted Future Amount'].round(2)
     summary['Budget Difference'] = summary['Budget Difference'].round(2)
-    summary['Recommended Budget'] = (summary['Predicted Future Amount'] * 1.1)+ summary['Current Amount']
+    summary['Recommended Budget'] = (summary['Predicted Future Amount'] * 1.1)
     # Drop the numerical category column to keep only the original category names
     summary = summary.drop(columns=['category'])
 
